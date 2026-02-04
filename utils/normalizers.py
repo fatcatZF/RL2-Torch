@@ -13,6 +13,7 @@ class RunningMeanStd1DNormalizer(nn.Module):
 
         self.register_buffer("mean", torch.zeros(self.shape))
         self.register_buffer("var", torch.ones(self.shape))
+        self.register_buffer("count", torch.full((), eps))
         # Track the total number of samples processed
         self.register_buffer("total_samples_seen", torch.tensor(0, dtype=torch.long))
 
