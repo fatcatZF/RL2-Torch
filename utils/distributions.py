@@ -1,7 +1,10 @@
 import torch 
 import torch.nn.functional as F
-from torch.distributions import Normal
+from torch.distributions import Normal, Categorical
 import math 
+
+
+
 
 
 
@@ -77,3 +80,25 @@ class TanhNormal:
     @property
     def stddev(self):
         return self.base.stddev
+    
+
+
+
+def make_action_dist(policy_out, is_discrete: bool, 
+                     action_low=None, action_high=None):
+    """
+    Factory function to build a torch distribution from model output.
+    """
+    if is_discrete:
+        # Categorical expects logits (unnormalized log probabilities)
+        return Categorical(logits=policy_out)
+    else:
+        mu, log_std = policy_out
+        std = torch.exp(log_std)
+        
+        # If bounds are provided, use our stable TanhNormal
+        if action_low is not None and action_high is not None:
+            return TanhNormal(mu, std, action_low, action_high)
+        
+        # Otherwise, fall back to a standard Unbounded Normal
+        return Normal(mu, std)
