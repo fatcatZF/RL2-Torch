@@ -7,9 +7,9 @@ import numpy as np
 
 class RL2GRUFeatureExtractor(nn.Module):
     def __init__(self, 
-                 state_dim, 
-                 action_dim,
-                 h_dim,
+                 state_dim: int, 
+                 action_dim: int,
+                 h_dim: int,
                  is_discrete=True,
                  action_embed_dim=None, 
                  state_norm: nn.Module = None,
@@ -17,6 +17,8 @@ class RL2GRUFeatureExtractor(nn.Module):
                  action_norm: nn.Module = None):
         super().__init__()
         self.is_discrete = is_discrete
+        self.state_dim = state_dim
+        self.action_dim = action_dim
         self.h_dim = h_dim
 
         # Normalizers
