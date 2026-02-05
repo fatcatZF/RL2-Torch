@@ -24,6 +24,7 @@ class Chunk:
 
 
 
+
 class RL2RolloutBuffer:
     def __init__(self, num_envs: int, device: torch.device, is_discrete: bool):
         self.num_envs = num_envs
@@ -88,7 +89,7 @@ class RL2RolloutBuffer:
 
     def build_chunks(self, chunk_len: int) -> List[Chunk]:
         assert self.adv_t is not None, "Compute GAE first"
-        T, N = self.adv_t.shape
+        T, N = self.adv_t.shape #(seq_len, num_envs)
 
         obs_t = torch.as_tensor(np.stack(self.obs), device=self.device)
         # Using .view ensures the scalar lists become (T, N, 1) for consistent slicing
@@ -127,8 +128,47 @@ class RL2RolloutBuffer:
                 ))
         return chunks
 
+
+
+
+
     
 
+def combine_chunks(mb: List[Chunk], h_dim: int, num_layers: int = 1):
+    """
+    Combines a list of Chunks into batched tensors.
+    Handles optional h_0 by providing zero-state defaults.
+    """
+    assert len(mb) > 0, "Empty minibatch provided"
+    
+    L = min(c.obs.shape[0] for c in mb)
+    device = mb[0].obs.device
+    
+    def cat_attr(name):
+        return torch.cat([getattr(c, name)[:L] for c in mb], dim=1)
+
+    obs       = cat_attr('obs')
+    prev_a    = cat_attr('prev_a')
+    prev_r    = cat_attr('prev_r')
+    prev_done = cat_attr('prev_done')
+    act       = cat_attr('act')
+    raw_act   = cat_attr('raw_act')
+    old_logp  = cat_attr('old_logp').squeeze(-1) 
+    adv       = cat_attr('adv').squeeze(-1)      
+    ret       = cat_attr('ret').squeeze(-1)      
+    
+    # --- Robust h_0 Handling ---
+    h_list = []
+    for c in mb:
+        if c.h_0 is not None:
+            h_list.append(c.h_0)
+        else:
+            # Create a zero-filled state if h_0 is missing
+            h_list.append(torch.zeros(num_layers, 1, h_dim, device=device))
+    
+    h_0 = torch.cat(h_list, dim=1)
+
+    return obs, prev_a, prev_r, prev_done, act, raw_act, old_logp, adv, ret, h_0, L
     
 
 
