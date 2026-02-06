@@ -102,13 +102,19 @@ def train_rl2_ppo(
                     act_env = act_t.cpu().numpy().squeeze(0) #(num_envs,)
                     raw_act_store = act_env
                 else:
-                    # Stability: Sample raw Gaussian sample 'u'
-                    #print(dist)
-                    act_t, raw_act_t = dist.sample() # (1, num_envs, action_dim)
-                    #act_t = torch.tanh(raw_act_t) # (1, num_envs, action_dim)
-                    logp_t = dist.log_prob_from_u(raw_act_t)
-                    act_env = act_t.cpu().numpy().squeeze(0) #(num_envs, action_dim)
-                    raw_act_store = raw_act_t.cpu().numpy().squeeze(0) #(num_envs, action_dim)
+                    if hasattr(dist, 'log_prob_from_u'):
+                        # Bounded Case (TanhNormal)
+                        act_t, raw_act_t = dist.sample() 
+                        logp_t = dist.log_prob_from_u(raw_act_t).sum(dim=-1)
+                        act_env = act_t.cpu().numpy().squeeze(0)
+                        raw_act_store = raw_act_t.cpu().numpy().squeeze(0)
+                    else:
+                        # Unbounded Case (Normal)
+                        act_t = dist.sample() # (1, num_envs, action_dim)
+                        logp_t = dist.log_prob(act_t).sum(dim=-1) # Sum over action dimensions
+                        act_env = act_t.cpu().numpy().squeeze(0)
+                        # For unbounded, the 'raw' action is just the action itself
+                        raw_act_store = act_env
 
             next_obs, rew, term, trunc, _ = envs.step(act_env)
             done = np.logical_or(term, trunc).astype(np.float32)
@@ -163,11 +169,25 @@ def train_rl2_ppo(
                 #print("b_act size: ", b_act.size())
 
                 # PPO Loss
-                new_lp = new_dist.log_prob_from_u(b_raw_act) if not is_discrete else new_dist.log_prob(b_act.squeeze(-1))
+                #new_lp = new_dist.log_prob_from_u(b_raw_act) if not is_discrete else new_dist.log_prob(b_act.squeeze(-1))
+                if is_discrete:
+                    new_lp = new_dist.log_prob(b_act.squeeze(-1))
+                else:
+                    # Continuous Handling
+                    if hasattr(new_dist, 'log_prob_from_u'):
+                        # Bounded Case (e.g., TanhNormal)
+                        # Uses the raw Gaussian sample 'u' stored in the buffer
+                        new_lp = new_dist.log_prob_from_u(b_raw_act).sum(dim=-1)
+                    else:
+                        new_lp = new_dist.log_prob(b_act).sum(dim=-1)
+
                 #print("new_lp", new_lp.size())
                 #print("b_lp", b_lp.size())
-                if not is_discrete:
-                    new_lp = new_lp.squeeze(-1)
+                """
+                please notice new_lp dimensions in case of sum
+                """
+                #if not is_discrete:
+                #    new_lp = new_lp.squeeze(-1)
                 ratio = torch.exp(new_lp - b_lp)
                 # Normalize advantages per minibatch for stability
                 adv_std = b_adv.std() + 1e-8
