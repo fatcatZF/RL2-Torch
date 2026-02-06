@@ -25,12 +25,12 @@ def train_rl2_ppo(
     is_discrete: bool = True,
     action_low=None, action_high=None,
     # Hyperparameters
-    num_envs: int = 8,
+    num_envs: int = 4,
     total_updates: int = 1000, 
     horizon: int = 1024,
     chunk_len: int = 32, 
     ppo_epochs: int = 4,
-    minibatch_chunks: int = 8,
+    minibatch_chunks: int = 16,
     gamma: float = 0.99, 
     lam: float = 0.95,
     lr: float = 3e-4,
@@ -86,7 +86,7 @@ def train_rl2_ppo(
                 dist = make_action_dist(policy_out, is_discrete, action_low, action_high)
                 
                 if is_discrete:
-                    act_t = dist.sample() # (N,)
+                    act_t = dist.sample() # (num_envs,)
                     logp_t = dist.log_prob(act_t)
                     act_env = act_t.cpu().numpy()
                     raw_act_store = act_env
