@@ -53,6 +53,10 @@ class RL2GRUFeatureExtractor(nn.Module):
         if self.reward_norm is not None:
             reward = self.reward_norm(reward, update=update_rms) 
 
+        
+        if self.is_discrete and prev_action.dim() == 3:
+            prev_action = prev_action.squeeze(-1)
+
         # Handle previous action 
         if self.is_discrete:
             # discrete actions usually aren't "normalized", but we embed them
@@ -63,7 +67,8 @@ class RL2GRUFeatureExtractor(nn.Module):
             if self.action_norm is not None:
                 action_val = self.action_norm(action_val, update=update_rms)
 
-        # Construct GRU Input
+       
+
         x = torch.cat([state, action_val, reward, done], dim=-1)
         x = self.encoder(x)
         x = self.layer_norm(x)

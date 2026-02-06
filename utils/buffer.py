@@ -68,11 +68,12 @@ class RL2RolloutBuffer:
         last_values: (num_envs, ), the critic's value estimate for the next state (the bootstrap)
         """
         T = len(self.rew)
-        vals = torch.as_tensor(np.stack(self.val), device=self.device, dtype=torch.float32)
-        rews = torch.as_tensor(np.stack(self.rew), device=self.device, dtype=torch.float32)
-        dones = torch.as_tensor(np.stack(self.done), device=self.device, dtype=torch.float32)
+        N = self.num_envs
+        vals = torch.as_tensor(np.stack(self.val), device=self.device, dtype=torch.float32).view(T, N)
+        rews = torch.as_tensor(np.stack(self.rew), device=self.device, dtype=torch.float32).view(T, N)
+        dones = torch.as_tensor(np.stack(self.done), device=self.device, dtype=torch.float32).view(T, N)
         
-        full_vals = torch.cat([vals, last_values.unsqueeze(0)], dim=0)
+        full_vals = torch.cat([vals, last_values.view(1, N)], dim=0)
         adv = torch.zeros(T, self.num_envs, device=self.device)
         gae = 0.0
 
@@ -112,7 +113,14 @@ class RL2RolloutBuffer:
                 end = min(start + chunk_len, T)
                 if end - start < 2: continue
                 
-                h_0 = self.h[start][:, env_idx:env_idx+1, :].contiguous()
+                #h_0 = self.h[start][:, env_idx:env_idx+1, :].contiguous()
+                raw_h = self.h[start]
+                if raw_h is not None:
+                    if raw_h.dim() == 2:
+                        raw_h = raw_h.unsqueeze(0)
+                    h_0 = raw_h[:, env_idx:env_idx+1, :].contiguous()
+                else:
+                    h_0 = None # Let combine_chunks handle the zero-init
 
                 chunks.append(Chunk(
                     h_0=h_0,

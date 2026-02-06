@@ -20,6 +20,7 @@ def train_rl2_ppo(
     sample_tasks_eval: Callable[[int], List[Dict[str, Any]]],
     make_envs_eval: Callable[[List[Dict[str, Any]]], Any],
     # Dimensions & Config
+    h_dim: int,
     action_dim: int,
     is_discrete: bool = True,
     action_low=None, action_high=None,
@@ -37,7 +38,7 @@ def train_rl2_ppo(
     max_grad_norm: float = 0.5,
     # Evaluation
     eval_interval: int = 20,
-    eval_tasks_count: int = 16,
+    eval_tasks_count: int = 10,
     seed: int = 0,
     device: Optional[torch.device] = None,
     save_path: str = "best_rl2_model.pt"
@@ -73,10 +74,10 @@ def train_rl2_ppo(
 
         for t in range(horizon):
             # Convert to tensors
-            obs_t = torch.as_tensor(obs, device=device, dtype=torch.float32)
-            pa_t = torch.as_tensor(prev_a, device=device)
-            pr_t = torch.as_tensor(prev_r, device=device).float().view(num_envs, 1)
-            pd_t = torch.as_tensor(prev_done, device=device).float().view(num_envs, 1)
+            obs_t = torch.as_tensor(obs, device=device, dtype=torch.float32).unsqueeze(0)
+            pa_t = torch.as_tensor(prev_a, device=device).unsqueeze(0)
+            pr_t = torch.as_tensor(prev_r, device=device).float().view(1, num_envs, 1)
+            pd_t = torch.as_tensor(prev_done, device=device).float().view(1, num_envs, 1)
 
             with torch.no_grad():
                 # Forward through GRU
@@ -86,25 +87,26 @@ def train_rl2_ppo(
                 dist = make_action_dist(policy_out, is_discrete, action_low, action_high)
                 
                 if is_discrete:
-                    act_t = dist.sample() # (num_envs,)
+                    act_t = dist.sample() # (1, num_envs)
                     logp_t = dist.log_prob(act_t)
-                    act_env = act_t.cpu().numpy()
+                    act_env = act_t.cpu().numpy().squeeze(0) #(num_envs,)
                     raw_act_store = act_env
                 else:
                     # Stability: Sample raw Gaussian sample 'u'
-                    raw_act_t = dist.sample_raw() 
-                    act_t = torch.tanh(raw_act_t)
+                    raw_act_t = dist.sample_raw() # (1, num_envs, action_dim)
+                    act_t = torch.tanh(raw_act_t) # (1, num_envs, action_dim)
                     logp_t = dist.log_prob_from_raw(raw_act_t)
-                    act_env = act_t.cpu().numpy()
-                    raw_act_store = raw_act_t.cpu().numpy()
+                    act_env = act_t.cpu().numpy().squeeze(0) #(num_envs, action_dim)
+                    raw_act_store = raw_act_t.cpu().numpy().squeeze(0) #(num_envs, action_dim)
 
             next_obs, rew, term, trunc, _ = envs.step(act_env)
             done = np.logical_or(term, trunc).astype(np.float32)
 
             buffer.add(
                 obs=obs, prev_a=prev_a, prev_r=prev_r, prev_done=prev_done,
-                act=act_env, raw_act=raw_act_store, logp=logp_t.cpu().numpy(),
-                val=value.squeeze(-1).cpu().numpy(), rew=rew, done=done, h=h
+                act=act_env, raw_act=raw_act_store, 
+                logp=logp_t.squeeze(0).cpu().numpy(),
+                val=value.reshape(-1).cpu().numpy(), rew=rew, done=done, h=h
             )
 
             # Transition
@@ -113,13 +115,19 @@ def train_rl2_ppo(
         # --- Post-Collection ---
         with torch.no_grad():
             # Final bootstrap value
-            obs_t = torch.as_tensor(obs, device=device, dtype=torch.float32)
-            pa_t = torch.as_tensor(prev_a, device=device)
-            pr_t = torch.as_tensor(prev_r, device=device).float().view(num_envs, 1)
-            pd_t = torch.as_tensor(prev_done, device=device).float().view(num_envs, 1)
+            obs_t = torch.as_tensor(obs, device=device, dtype=torch.float32).unsqueeze(0)
+            pa_t = torch.as_tensor(prev_a, device=device).unsqueeze(0)
+            pr_t = torch.as_tensor(prev_r, device=device).float().view(num_envs, 1).unsqueeze(0)
+            pd_t = torch.as_tensor(prev_done, device=device).float().view(num_envs, 1).unsqueeze(0)
+
+            #print(obs_t.size())
+            #print(pa_t.size())
+            #print(pr_t.size())
+            #print(pd_t.size())
+            #print(h.size())
             _, last_v, _ = model(obs_t, pa_t, pr_t, pd_t, h)
         
-        buffer.compute_gae(last_v.squeeze(-1), gamma, lam)
+        buffer.compute_gae(last_v.reshape(-1), gamma, lam)
         chunks = buffer.build_chunks(chunk_len)
         envs.close()
 
@@ -129,14 +137,20 @@ def train_rl2_ppo(
             random.shuffle(chunks)
             for i in range(0, len(chunks), minibatch_chunks):
                 mb = chunks[i:i + minibatch_chunks]
-                b_obs, b_pa, b_pr, b_pd, b_act, b_raw_act, b_lp, b_adv, b_ret, b_h0, _ = combine_chunks(mb)
+                b_obs, b_pa, b_pr, b_pd, b_act, b_raw_act, b_lp, b_adv, b_ret, b_h0, _ = combine_chunks(mb, h_dim)
 
+            
                 # Re-run sequences
                 p_out, val, _ = model(b_obs, b_pa, b_pr, b_pd, b_h0)
+                #print("val shape: ", val.size())
+                #print("b_ret shape: ", b_ret.size())
+            
                 new_dist = make_action_dist(p_out, is_discrete, action_low, action_high)
+                #print("distribution: ", new_dist)
+                #print("b_act size: ", b_act.size())
 
                 # PPO Loss
-                new_lp = new_dist.log_prob_from_raw(b_raw_act) if not is_discrete else new_dist.log_prob(b_act)
+                new_lp = new_dist.log_prob_from_raw(b_raw_act) if not is_discrete else new_dist.log_prob(b_act.squeeze(-1))
                 ratio = torch.exp(new_lp - b_lp)
                 # Normalize advantages per minibatch for stability
                 adv_std = b_adv.std() + 1e-8
