@@ -43,14 +43,16 @@ def run_meta_eval(
         policy_out, _, h_next = model(obs_t, pa_t, pr_t, pd_t, h)
         
         # Squeeze sequence dimension for action selection (1, N, D) -> (N, D)
-        policy_out = policy_out.squeeze(0)
+        #policy_out = policy_out.squeeze(0)
 
         if is_discrete:
             # Select best action (Argmax) for evaluation
-            act_env = torch.argmax(policy_out, dim=-1).cpu().numpy()
+            logits = policy_out.squeeze(0)
+            act_env = torch.argmax(logits, dim=-1).cpu().numpy()
         else:
             # For continuous, policy_out contains (mu, log_std)
             mu, _ = policy_out 
+            mu = mu.squeeze(0)
             act_env = torch.tanh(mu).cpu().numpy()
 
         # 3. Environment Step
@@ -78,3 +80,9 @@ def run_meta_eval(
                 prev_r[i] = 0.0
 
     return float(np.mean(total_rewards))
+
+
+
+@torch.no_grad()
+def run_meta_eval_continuous():
+    pass 

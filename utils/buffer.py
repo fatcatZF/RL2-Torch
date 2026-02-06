@@ -103,8 +103,8 @@ class RL2RolloutBuffer:
             act_t = torch.as_tensor(np.stack(self.act), device=self.device, dtype=torch.long).view(T, N, 1)
             raw_act_t = act_t
         else:
-            prev_a_t = torch.as_tensor(np.stack(self.prev_a), device=self.device)
-            act_t = torch.as_tensor(np.stack(self.act), device=self.device)
+            prev_a_t = torch.as_tensor(np.stack(self.prev_a), device=self.device).float()
+            act_t = torch.as_tensor(np.stack(self.act), device=self.device).float()
             raw_act_t = torch.as_tensor(np.stack(self.raw_act), device=self.device)
 
         chunks = []

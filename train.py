@@ -10,6 +10,9 @@ from utils.distributions import make_action_dist
 from utils.evaluation import run_meta_eval
 
 
+"""
+lack cases unbound continuous action space
+"""
 
 
 def train_rl2_ppo(
@@ -76,11 +79,18 @@ def train_rl2_ppo(
             # Convert to tensors
             obs_t = torch.as_tensor(obs, device=device, dtype=torch.float32).unsqueeze(0)
             pa_t = torch.as_tensor(prev_a, device=device).unsqueeze(0)
+            if not is_discrete:
+                pa_t = pa_t.float()
             pr_t = torch.as_tensor(prev_r, device=device).float().view(1, num_envs, 1)
             pd_t = torch.as_tensor(prev_done, device=device).float().view(1, num_envs, 1)
 
             with torch.no_grad():
                 # Forward through GRU
+                #print(obs_t.dtype)
+                #print(pa_t.dtype)
+                #print(pr_t.dtype)
+                #print(pd_t.dtype)
+                
                 policy_out, value, h_next = model(obs_t, pa_t, pr_t, pd_t, h)
                 
                 # Distribution handles continuous/discrete logic
@@ -93,9 +103,10 @@ def train_rl2_ppo(
                     raw_act_store = act_env
                 else:
                     # Stability: Sample raw Gaussian sample 'u'
-                    raw_act_t = dist.sample_raw() # (1, num_envs, action_dim)
-                    act_t = torch.tanh(raw_act_t) # (1, num_envs, action_dim)
-                    logp_t = dist.log_prob_from_raw(raw_act_t)
+                    #print(dist)
+                    act_t, raw_act_t = dist.sample() # (1, num_envs, action_dim)
+                    #act_t = torch.tanh(raw_act_t) # (1, num_envs, action_dim)
+                    logp_t = dist.log_prob_from_u(raw_act_t)
                     act_env = act_t.cpu().numpy().squeeze(0) #(num_envs, action_dim)
                     raw_act_store = raw_act_t.cpu().numpy().squeeze(0) #(num_envs, action_dim)
 
@@ -138,6 +149,8 @@ def train_rl2_ppo(
             for i in range(0, len(chunks), minibatch_chunks):
                 mb = chunks[i:i + minibatch_chunks]
                 b_obs, b_pa, b_pr, b_pd, b_act, b_raw_act, b_lp, b_adv, b_ret, b_h0, _ = combine_chunks(mb, h_dim)
+                #print(b_raw_act.size())
+                #print(b_lp.size())
 
             
                 # Re-run sequences
@@ -150,7 +163,11 @@ def train_rl2_ppo(
                 #print("b_act size: ", b_act.size())
 
                 # PPO Loss
-                new_lp = new_dist.log_prob_from_raw(b_raw_act) if not is_discrete else new_dist.log_prob(b_act.squeeze(-1))
+                new_lp = new_dist.log_prob_from_u(b_raw_act) if not is_discrete else new_dist.log_prob(b_act.squeeze(-1))
+                #print("new_lp", new_lp.size())
+                #print("b_lp", b_lp.size())
+                if not is_discrete:
+                    new_lp = new_lp.squeeze(-1)
                 ratio = torch.exp(new_lp - b_lp)
                 # Normalize advantages per minibatch for stability
                 adv_std = b_adv.std() + 1e-8
