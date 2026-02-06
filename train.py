@@ -7,6 +7,7 @@ import random
 from typing import Callable, Any, Optional, List, Dict
 from utils.buffer import RL2RolloutBuffer, combine_chunks
 from utils.distributions import make_action_dist
+from utils.evaluation import run_meta_eval
 
 
 
@@ -19,15 +20,14 @@ def train_rl2_ppo(
     sample_tasks_eval: Callable[[int], List[Dict[str, Any]]],
     make_envs_eval: Callable[[List[Dict[str, Any]]], Any],
     # Dimensions & Config
-    obs_dim: int,
     action_dim: int,
-    h_dim: int = 64,
     is_discrete: bool = True,
     action_low=None, action_high=None,
     # Hyperparameters
     num_envs: int = 4,
     total_updates: int = 1000, 
     horizon: int = 1024,
+    max_eval_steps: int = 2000,
     chunk_len: int = 32, 
     ppo_epochs: int = 4,
     minibatch_chunks: int = 16,
@@ -160,7 +160,8 @@ def train_rl2_ppo(
         if update % eval_interval == 0:
             eval_configs = sample_tasks_eval(eval_tasks_count)
             eval_envs = make_envs_eval(eval_configs)
-            avg_return = run_meta_eval(model, eval_envs, device, is_discrete, horizon, action_dim)
+            avg_return = run_meta_eval(model, eval_envs, device, is_discrete, max_eval_steps, 
+                                       action_dim)
             eval_envs.close()
 
             print(f"Update {update:4d} | Meta-Eval Return: {avg_return:8.2f}")
@@ -173,29 +174,3 @@ def train_rl2_ppo(
     model.load_state_dict(torch.load(save_path))
     return model
 
-def run_meta_eval(model, envs, device, is_discrete, horizon, action_dim):
-    """Simple evaluation loop across vectorized meta-tasks."""
-    model.eval()
-    n = envs.num_envs
-    obs, _ = envs.reset()
-    h = None
-    pa = np.zeros(n) if is_discrete else np.zeros((n, action_dim))
-    pr, pd = np.zeros(n), np.ones(n)
-    total_rew = np.zeros(n)
-
-    for _ in range(horizon):
-        obs_t = torch.as_tensor(obs, device=device, dtype=torch.float32)
-        pa_t = torch.as_tensor(pa, device=device)
-        pr_t = torch.as_tensor(pr, device=device).float().view(n, 1)
-        pd_t = torch.as_tensor(pd, device=device).float().view(n, 1)
-
-        with torch.no_grad():
-            p_out, _, h_next = model(obs_t, pa_t, pr_t, pd_t, h)
-            dist = make_action_dist(p_out, is_discrete)
-            act = dist.sample().cpu().numpy() if is_discrete else torch.tanh(dist.sample()).cpu().numpy()
-        
-        obs, rew, term, trunc, _ = envs.step(act)
-        total_rew += rew
-        h, pa, pr, pd = h_next, act, rew, np.logical_or(term, trunc).astype(np.float32)
-        
-    return total_rew.mean()
