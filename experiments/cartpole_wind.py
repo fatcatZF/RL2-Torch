@@ -18,6 +18,8 @@ from utils.normalizers import RunningMeanStd1DNormalizer
 
 from train import train_rl2_ppo
 
+import os 
+
 # Environment
 
 class CartPoleEnvWithWind(CartPoleEnv):
@@ -204,9 +206,13 @@ def cartpole_model_factory(h_dim=64):
     return model
 
 
+if __name__=="__main__":
 
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    save_path = os.path.join(project_root, "checkpoints", "cartpole_wind.pt")
 
-trained_model = train_rl2_ppo(
+    trained_model = train_rl2_ppo(
         model_factory=lambda: cartpole_model_factory(h_dim=64),
         sample_tasks_train=sample_tasks_train,
         make_envs_train=make_envs, # In your file, make_envs handles the dict mapping
@@ -215,8 +221,9 @@ trained_model = train_rl2_ppo(
         action_dim=2,
         h_dim=64,
         is_discrete=True,
-        num_envs=4
-    )
+        num_envs=4,
+        save_path=save_path,
+        )
 
 
 

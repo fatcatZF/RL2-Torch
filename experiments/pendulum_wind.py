@@ -14,6 +14,8 @@ from utils.normalizers import RunningMeanStd1DNormalizer
 
 from train import train_rl2_ppo
 
+import os 
+
 # Environment
 class PendlumEnvWithWind(PendulumEnv):
     def __init__(self, wind_torque=0.0):
@@ -94,35 +96,57 @@ def make_envs(tasks: List[Dict[str, Any]]):
 
 
 
-# Example Usage in your main script:
-obs_dim = 3  # Pendulum obs: [cos(theta), sin(theta), theta_dot]
-action_dim = 1 # Pendulum action: [torque]
 
-# Initialize model factory
-def model_factory():
-    # Continuous setup: no action embedding, use action_dim directly
-    extractor = RL2GRUFeatureExtractor(
-        state_dim=obs_dim,
+
+def pendulum_model_factory(h_dim=256):
+    """
+    Create RL2 model specificially for Pendulum with Wind.
+    """
+    state_dim = 3
+    action_dim = 1
+
+    state_norm = RunningMeanStd1DNormalizer(shape=(state_dim,), max_samples=1000)
+    reward_norm = RunningMeanStd1DNormalizer(shape=(1,), max_samples=1000)
+ 
+    feature_extractor = RL2GRUFeatureExtractor(
+        state_dim=state_dim,
         action_dim=action_dim,
-        h_dim=256,
-        is_discrete=False
+        h_dim=h_dim,
+        is_discrete=False,
+        state_norm=state_norm,
+        reward_norm=reward_norm
     )
-    return RL2ActorCritic(feat_extractor=extractor)
 
-# Start training
-trained_model = train_rl2_ppo(
-    model_factory=model_factory,
-    sample_tasks_train=sample_tasks_train,
-    make_envs_train=make_envs,
-    sample_tasks_eval=sample_tasks_eval,
-    make_envs_eval=make_envs,
-    h_dim=256,
-    action_dim=action_dim,
-    is_discrete=False,
-    num_envs=16, # Number of parallel tasks
-    total_updates=2000,
-    horizon=400,
-    action_low= -2.0, 
-    action_high= 2.0,
-    save_path="checkpoints/pendulum_wind.pt",
-)
+    model = RL2ActorCritic(
+        feat_extractor=feature_extractor,
+        actor_mlp=(64, 64),
+        critic_mlp=(64, 64),
+    )
+
+    return model 
+
+
+
+
+if __name__ == "__main__":
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    save_path = os.path.join(project_root, "checkpoints", "pendulum_wind.pt")
+
+    trained_model = train_rl2_ppo(
+        model_factory=lambda: pendulum_model_factory(h_dim=256),
+        sample_tasks_train=sample_tasks_train,
+        make_envs_train=make_envs, # In your file, make_envs handles the dict mapping
+        sample_tasks_eval=sample_tasks_eval,
+        make_envs_eval=make_envs,
+        action_dim=1,
+        h_dim=256,
+        is_discrete=False,
+        action_low = -2.0,
+        action_high = 2.0,
+        num_envs=16,
+        total_updates = 2000,
+        save_path=save_path,
+        )
+
