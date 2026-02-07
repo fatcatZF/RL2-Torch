@@ -148,5 +148,6 @@ if __name__ == "__main__":
         num_envs=16,
         total_updates = 2000,
         save_path=save_path,
+        lr = 1e-4,
         )
 

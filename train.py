@@ -212,7 +212,7 @@ def train_rl2_ppo(
             eval_configs = sample_tasks_eval(eval_tasks_count)
             eval_envs = make_envs_eval(eval_configs)
             avg_return = run_meta_eval(model, eval_envs, device, is_discrete, max_eval_steps, 
-                                       action_dim)
+                                       action_dim, action_high=action_high, action_low=action_low)
             eval_envs.close()
 
             print(f"Update {update:4d} | Meta-Eval Return: {avg_return:8.2f}")

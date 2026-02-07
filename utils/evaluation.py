@@ -5,6 +5,7 @@ from typing import Any
 
 
 
+
 @torch.no_grad()
 def run_meta_eval(
     model: nn.Module,
@@ -12,8 +13,17 @@ def run_meta_eval(
     device: torch.device,
     is_discrete: bool,
     max_steps: int, 
-    action_dim: int
+    action_dim: int,
+    action_low = None, 
+    action_high = None,
 ) -> float:
+    
+    scale, bias = 1.0, 0.0
+
+    if action_low is not None and action_high is not None:
+        scale = (action_high - action_low) / 2.0
+        bias = (action_high + action_low) / 2.0
+
     model.eval()
     num_envs = envs.num_envs
     obs, _ = envs.reset()
@@ -53,7 +63,10 @@ def run_meta_eval(
             # For continuous, policy_out contains (mu, log_std)
             mu, _ = policy_out 
             mu = mu.squeeze(0)
-            act_env = torch.tanh(mu).cpu().numpy()
+            if action_low is None or action_high is None:
+                act_env = mu.cpu().numpy()
+            else:
+                act_env = scale*torch.tanh(mu).cpu().numpy()+bias
 
         # 3. Environment Step
         next_obs, rew, term, trunc, _ = envs.step(act_env)
