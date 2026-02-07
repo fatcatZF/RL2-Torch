@@ -123,5 +123,6 @@ trained_model = train_rl2_ppo(
     total_updates=2000,
     horizon=400,
     action_low= -2.0, 
-    action_high= 2.0
+    action_high= 2.0,
+    save_path="checkpoints/pendulum_wind.pt",
 )
