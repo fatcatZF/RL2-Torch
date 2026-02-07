@@ -56,13 +56,13 @@ gym.register(
     max_episode_steps=200
 )
 
-def sample_tasks_train(num_tasks: int) -> List[Dict[str, Any]]:
+def sample_tasks_train(num_envs: int) -> List[Dict[str, Any]]:
     """
     Samples wind torque values uniformly between -0.5 and 0.5 for training.
     """
-    return [{"wind_torque": np.random.uniform(-0.5, 0.5)} for _ in range(num_tasks)]
+    return [{"wind_torque": np.random.uniform(-0.5, 0.5)} for _ in range(num_envs)]
 
-def sample_tasks_eval(num_tasks: int) -> List[Dict[str, Any]]:
+def sample_tasks_eval(num_envs: int) -> List[Dict[str, Any]]:
     """
     Samples wind torque values for evaluation. 
     You can use uniform sampling or a fixed grid for more consistent benchmarking.
@@ -71,7 +71,7 @@ def sample_tasks_eval(num_tasks: int) -> List[Dict[str, Any]]:
     # return [{"wind_torque": np.random.uniform(-0.5, 0.5)} for _ in range(num_tasks)]
     
     # Option B: Fixed grid for reproducible evaluation
-    torques = np.linspace(-0.5, 0.5, num_tasks)
+    torques = np.linspace(-0.5, 0.5, num_envs)
     return [{"wind_torque": t} for t in torques]
 
 
