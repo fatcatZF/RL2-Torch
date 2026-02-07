@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "rl2_torch"
+version = "0.1.0"
+dependencies = [
+    "torch>=2.1.0",
+    "numpy>=2.4.2",
+    "gymnasium==1.2.3",
+    "mujoco>=3.4.0",
+    "metaworld>=3.0.0",
+    "pygame>=2.6.1",
+    "matplotlib>=3.10.8",
+    "scipy>=1.17.0",
+    "scikit-learn", # Needed for your PCA plots
+]
+
+# --- ADD THIS SECTION BELOW ---
+[tool.setuptools]
+# This tells Python to treat these folders as the primary modules
+packages = ["agents", "utils"]
+py-modules = ["train"]
+
+[tool.setuptools.package-dir]
+# This maps the package names to their directory locations in the root
+"agents" = "agents"
+"utils" = "utils"
