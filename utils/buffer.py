@@ -93,7 +93,6 @@ class RL2RolloutBuffer:
         T, N = self.adv_t.shape #(seq_len, num_envs)
 
         obs_t = torch.as_tensor(np.stack(self.obs), device=self.device)
-        # Using .view ensures the scalar lists become (T, N, 1) for consistent slicing
         prev_r_t = torch.as_tensor(np.stack(self.prev_r), device=self.device).float().view(T, N, 1)
         prev_done_t = torch.as_tensor(np.stack(self.prev_done), device=self.device).float().view(T, N, 1)
         old_logp_t = torch.as_tensor(np.stack(self.logp), device=self.device).view(T, N, 1)
@@ -124,15 +123,15 @@ class RL2RolloutBuffer:
 
                 chunks.append(Chunk(
                     h_0=h_0,
-                    obs=obs_t[start:end, env_idx].unsqueeze(1),
+                    obs=obs_t[start:end, env_idx].unsqueeze(1).float(),
                     prev_a=prev_a_t[start:end, env_idx].unsqueeze(1),
-                    prev_r=prev_r_t[start:end, env_idx].unsqueeze(1),
-                    prev_done=prev_done_t[start:end, env_idx].unsqueeze(1),
+                    prev_r=prev_r_t[start:end, env_idx].unsqueeze(1).float(),
+                    prev_done=prev_done_t[start:end, env_idx].unsqueeze(1).float(),
                     act=act_t[start:end, env_idx].unsqueeze(1),
                     raw_act=raw_act_t[start:end, env_idx].unsqueeze(1),
-                    old_logp=old_logp_t[start:end, env_idx].unsqueeze(1),
-                    ret=self.ret_t[start:end, env_idx].unsqueeze(1),
-                    adv=self.adv_t[start:end, env_idx].unsqueeze(1)
+                    old_logp=old_logp_t[start:end, env_idx].unsqueeze(1).float(),
+                    ret=self.ret_t[start:end, env_idx].unsqueeze(1).float(),
+                    adv=self.adv_t[start:end, env_idx].unsqueeze(1).float()
                 ))
         return chunks
 

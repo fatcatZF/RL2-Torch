@@ -155,10 +155,12 @@ def train_rl2_ppo(
             for i in range(0, len(chunks), minibatch_chunks):
                 mb = chunks[i:i + minibatch_chunks]
                 b_obs, b_pa, b_pr, b_pd, b_act, b_raw_act, b_lp, b_adv, b_ret, b_h0, _ = combine_chunks(mb, h_dim)
-                #print(b_raw_act.size())
-                #print(b_lp.size())
-
-            
+                #print(b_obs.dtype)
+                #print(b_pa.dtype) 
+                #print(b_pr.dtype)
+                #print(b_pd.dtype)
+                #print(b_h0.dtype)
+             
                 # Re-run sequences
                 p_out, val, _ = model(b_obs, b_pa, b_pr, b_pd, b_h0)
                 #print("val shape: ", val.size())
