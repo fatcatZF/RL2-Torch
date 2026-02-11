@@ -117,10 +117,11 @@ if __name__=="__main__":
         make_envs_train=make_envs, # In your file, make_envs handles the dict mapping
         sample_tasks_eval=sample_tasks_eval,
         make_envs_eval=make_envs,
-        action_dim=6,
+        action_dim=6, action_low=-1, action_high=1,
         h_dim=256,
         is_discrete=False,
         num_envs=4,
         save_path=save_path,
         horizon = 2000,
+        total_updates = 3000
         )
