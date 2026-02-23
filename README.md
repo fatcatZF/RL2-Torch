@@ -205,7 +205,6 @@ for update in range(total_updates):
 
         # Update state and hidden state
         obs, h = next_obs, h_next
-        if done: h = None  # Reset hidden state for new episode
 ```
 
 **Key Points:**
