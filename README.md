@@ -17,12 +17,12 @@ Traditional RL agents learn slowly through trial-and-error on each new task. **R
 ### How It Works
 
 ```
-Episode 1 (Task A):
+Task A (including several episodes):
   Step 1: h₀=None → Explore → h₁ (uncertain)
   Step 2: h₁ → Explore more → h₂ (learning)
   Step K: hₖ → Exploit → Optimized for Task A
 
-Episode 2 (New Task B):
+Task B (including several episodes):
   Step 1: h₀=None → Explore → h₁ (fast recognition)
   Step 5: h₅ → Already adapted to Task B!
 ```
